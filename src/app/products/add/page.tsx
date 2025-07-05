@@ -1,12 +1,16 @@
 "use client";
+
 import { basicSchema } from "@/schemas/product";
 import { getCategories } from "@/actions/categoryActions";
 import { getBrands } from "@/actions/brandActions";
+import { postProduct, updateProductCategories } from "@/actions/productActions";
 import { useFormik } from "formik";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { occasionOptions } from "../../../../constant";
 import Select from "react-select";
+import { toast } from "react-toastify";
+import { InsertProducts } from "@/types";
 
 function AddProduct() {
   const [brandsOption, setBrandsOption] = useState([]);
@@ -15,6 +19,7 @@ function AddProduct() {
   const [loading, setLoading] = useState(true);
 
   const router = useRouter();
+
   const {
     values: product,
     errors,
@@ -42,7 +47,48 @@ function AddProduct() {
     validationSchema: basicSchema,
 
     onSubmit: async (values: any, actions) => {
-      alert("Please Update the Code");
+      try {
+        const payload: any = {
+          name: values.name,
+          description: values.description,
+          old_price: +values.old_price,
+          price: values.old_price - (values.old_price * values.discount) / 100, 
+          discount: +values.discount,
+          rating: +values.rating,
+          colors: values.colors,
+          brands: JSON.stringify(values.brands.map((b) => b.value)),
+          gender: values.gender,
+          occasion: values.occasion.map((o) => o.value).join(","),
+          image_url: values.image_url,
+        };
+
+        const result = await postProduct(payload);
+
+        if ("error" in result) {
+          toast.error(result.error);
+          return;
+        }
+
+        const productId = Number(result.id);
+        const categoryIds = values.categories.map((c) => c.value);
+        console.log("productId : " , productId) ;
+        console.log("cat id : " , categoryIds) ;
+        const categoryResult = await updateProductCategories(productId, categoryIds);
+
+        if ("error" in categoryResult) {
+          toast.error(categoryResult.error);
+          return;
+        }
+
+        toast.success("Product added successfully!");
+        resetForm();
+        router.push("/products");
+      } catch (err) {
+        toast.error("Something went wrong while adding the product.");
+        console.error(err);
+      } finally {
+        actions.setSubmitting(false);
+      }
     },
   });
 
@@ -75,42 +121,23 @@ function AddProduct() {
   }, [setValues]);
 
   function handleChangeSelect(selectedOptions) {
-    if (selectedOptions.length === 0) {
-      setValues({
-        ...product,
-        brands: null,
-      });
-      return;
-    }
     setValues({
       ...product,
-      brands: selectedOptions,
+      brands: selectedOptions.length > 0 ? selectedOptions : null,
     });
   }
+
   function handleOccasion(selectedOptions) {
-    if (selectedOptions.length === 0) {
-      setValues({
-        ...product,
-        occasion: null,
-      });
-      return;
-    }
     setValues({
       ...product,
-      occasion: selectedOptions,
+      occasion: selectedOptions.length > 0 ? selectedOptions : null,
     });
   }
+
   function handleCategories(selectedOptions) {
-    if (selectedOptions.length === 0) {
-      setValues({
-        ...product,
-        categories: null,
-      });
-      return;
-    }
     setValues({
       ...product,
-      categories: selectedOptions,
+      categories: selectedOptions.length > 0 ? selectedOptions : null,
     });
   }
 
@@ -150,10 +177,9 @@ function AddProduct() {
             disabled={isSubmitting}
             placeholder="Enter name"
           />
-          {errors.name && touched.name && (
-            <p className="error">{errors.name}</p>
-          )}
+          {errors.name && touched.name && <p className="error">{errors.name}</p>}
         </div>
+
         <div>
           <label htmlFor="description">Product description: </label>
           <textarea
@@ -172,10 +198,9 @@ function AddProduct() {
             <p className="error">{errors.description}</p>
           )}
         </div>
+
         <div>
-          <label htmlFor="description" id="price">
-            Product old price:{" "}
-          </label>
+          <label htmlFor="old_price">Product old price: </label>
           <input
             type="number"
             name="old_price"
@@ -190,6 +215,7 @@ function AddProduct() {
             <p className="error">{errors.old_price}</p>
           )}
         </div>
+
         <div>
           <label htmlFor="discount">Product Discount: </label>
           <input
@@ -207,7 +233,7 @@ function AddProduct() {
             <p className="error">{errors.discount}</p>
           )}
         </div>
-        <div></div>
+
         <div>
           <div className="flex gap-4">
             <label htmlFor="colors">Product colors: </label>
@@ -227,6 +253,7 @@ function AddProduct() {
             <p className="error">{errors.colors}</p>
           )}
         </div>
+
         <div>
           <label htmlFor="rating">Product Rating: </label>
           <input
@@ -240,11 +267,12 @@ function AddProduct() {
             disabled={isSubmitting}
             onBlur={handleBlur}
             onChange={handleChange}
-          ></input>
+          />
           {errors.rating && touched.rating && (
             <p className="error">{errors.rating}</p>
           )}
         </div>
+
         <div>
           <label htmlFor="gender">Product Gender: </label>
           <select
@@ -256,13 +284,11 @@ function AddProduct() {
             onBlur={handleBlur}
             onChange={handleChange}
           >
-            {["men", "boy", "women", "girl"].map((gender, i) => {
-              return (
-                <option key={i} value={gender}>
-                  {gender}
-                </option>
-              );
-            })}
+            {["men", "boy", "women", "girl"].map((gender, i) => (
+              <option key={i} value={gender}>
+                {gender}
+              </option>
+            ))}
           </select>
           {errors.gender && touched.gender && (
             <p className="error">{errors.gender}</p>
@@ -286,7 +312,7 @@ function AddProduct() {
           )}
         </div>
 
-        <div className=" flex  items-center gap-4 mb-4">
+        <div className="flex items-center gap-4 mb-4">
           <span>Occasion</span>
           <Select
             className="flex-1 text-black"
@@ -302,7 +328,8 @@ function AddProduct() {
             <p className="error">{String(errors.occasion)}</p>
           )}
         </div>
-        <div className=" flex items-center gap-4 mb-4">
+
+        <div className="flex items-center gap-4 mb-4">
           <span>Choose Categories</span>
           <Select
             className="flex-1 text-black"
@@ -318,7 +345,8 @@ function AddProduct() {
             <p className="error">{String(errors.categories)}</p>
           )}
         </div>
-        <div className=" flex  items-center gap-4 mb-4">
+
+        <div className="flex items-center gap-4 mb-4">
           <label htmlFor="image_url">Upload an image</label>
           <input
             className="text-white"
@@ -331,6 +359,7 @@ function AddProduct() {
             accept="image/*"
           />
         </div>
+
         <button
           disabled={isSubmitting}
           type="submit"

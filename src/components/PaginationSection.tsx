@@ -12,16 +12,28 @@ function PaginationSection({
   pageSize: number;
 }) {
   const router = useRouter();
-
   const query = useSearchParams();
-  const searchParams = new URLSearchParams(query);
+  const searchParams = new URLSearchParams(query.toString());
 
   function handlePrev() {
-    alert("Please update the code.");
+    if (pageNo > 1) {
+      searchParams.set("page", String(pageNo - 1));
+      router.push(`?${searchParams.toString()}`);
+    }
   }
 
   function handleNext() {
-    alert("Please update the code.");
+    if (pageNo < lastPage) {
+      searchParams.set("page", String(pageNo + 1));
+      router.push(`?${searchParams.toString()}`);
+    }
+  }
+
+  function handlePageSizeChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const newSize = e.target.value;
+    searchParams.set("pageSize", newSize);
+    searchParams.set("page", "1"); // reset to first page on size change
+    router.push(`?${searchParams.toString()}`);
   }
 
   return (
@@ -30,34 +42,33 @@ function PaginationSection({
         value={pageSize}
         name="page-size"
         className="text-black"
-        onChange={(e) => {
-          alert("Please update the code.");
-        }}
+        onChange={handlePageSizeChange}
       >
-        {["10", "25", "50"].map((val) => {
-          return (
-            <option key={val} value={val}>
-              {val}
-            </option>
-          );
-        })}
+        {["10", "25", "50"].map((val) => (
+          <option key={val} value={val}>
+            {val}
+          </option>
+        ))}
       </select>
+
       <button
         className="p-3 bg-slate-300 text-black disabled:cursor-not-allowed"
         disabled={pageNo === 1}
         onClick={handlePrev}
       >
-        &larr;Prev
+        &larr; Prev
       </button>
+
       <p>
-        Page {pageNo} of {lastPage}{" "}
+        Page {pageNo} of {lastPage}
       </p>
+
       <button
         className="p-3 bg-slate-300 text-black disabled:cursor-not-allowed"
         disabled={pageNo === lastPage}
         onClick={handleNext}
       >
-        Next&rarr;
+        Next &rarr;
       </button>
     </div>
   );

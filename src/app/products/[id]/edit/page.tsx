@@ -5,6 +5,13 @@
 import { basicSchema } from "@/schemas/product";
 import { getCategories } from "@/actions/categoryActions";
 import { getBrands } from "@/actions/brandActions";
+// import {
+//   MapBrandIdsToName,
+//   getProduct,
+//   getProductCategories,
+//   updateProduct,
+//   updateProductCategories,
+// } from "@/actions/productActions";
 import {
   MapBrandIdsToName,
   getProduct,
@@ -61,8 +68,44 @@ function EditProduct({ params }: { params: { id: string } }) {
     validationSchema: basicSchema,
 
     onSubmit: async (values, actions) => {
-      alert("Please update the code.");
-    },
+      try {
+        const payload: UpdateProducts = {
+          name: values.name,
+          description: values.description,
+          old_price: +values.old_price,
+          discount: +values.discount,
+          rating: +values.rating,
+          colors: values.colors,
+          brands: JSON.stringify(values.brands.map((b) => b.value)),
+          gender: values.gender,
+          occasion: values.occasion.map((o) => o.value).join(","),
+          image_url: values.image_url,
+        };
+
+        const updated = await updateProduct(+id, payload);
+
+        if ("error" in updated) {
+          toast.error(updated.error);
+          return;
+        }
+
+        const categoryIds = values.categories.map((c) => c.value);
+        const categoryUpdate = await updateProductCategories(+id, categoryIds);
+
+        if ("error" in categoryUpdate) {
+          toast.error(categoryUpdate.error);
+          return;
+        }
+
+        toast.success("Product updated successfully!");
+        router.push("/products");
+      } catch (err) {
+        toast.error("Something went wrong while updating the product.");
+        console.error(err);
+      } finally {
+        actions.setSubmitting(false);
+      }
+    }
   });
 
   // throw new Error("Function not implemented.");

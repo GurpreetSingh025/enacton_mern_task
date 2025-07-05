@@ -2,14 +2,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-// import Select from "react-select";
+import { useEffect, useMemo, useState } from "react";
 import { MultiSelect } from "react-multi-select-component";
 import "rc-slider/assets/index.css";
 import { occasionOptions } from "../../constant";
-import { useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useQueryParams } from "@/hooks/useQueryParams";
+
 const Select = dynamic(() => import("react-select"), { ssr: false });
 
 const discountOptions = [
@@ -23,101 +22,77 @@ function Filter({ categories, brands }) {
   const searchParams = useQueryParams();
   const router = useRouter();
 
-  const brandsOption: any[] = useMemo(() => {
-    return brands.map((brand: any) => ({
-      value: brand.id,
-      label: brand.name,
-    }));
-  }, [brands]);
+  const brandsOption = useMemo(
+    () =>
+      brands.map((brand) => ({
+        value: brand.id,
+        label: brand.name,
+      })),
+    [brands]
+  );
 
-  const categoriesOption: any[] = useMemo(() => {
-    return categories.map((category: any) => ({
-      value: category.id,
-      label: category.name,
-    }));
-  }, [categories]);
+  const categoriesOption = useMemo(
+    () =>
+      categories.map((category) => ({
+        value: category.id,
+        label: category.name,
+      })),
+    [categories]
+  );
 
-  const occasionOption: any[] = useMemo(() => {
-    return occasionOptions.map((item) => {
-      return {
+  const occasionOption = useMemo(
+    () =>
+      occasionOptions.map((item) => ({
         value: item,
         label: item,
-      };
-    });
-  }, []);
+      })),
+    []
+  );
 
   const [categoriesSelected, setCategoriesSelected] = useState(() => {
-    if (searchParams.get("categoryId")) {
-      return searchParams
-        .get("categoryId")
-        ?.split(",")
-        .map((categoryId) => {
-          return {
-            value: +categoryId,
-            label: categoriesOption.find(
-              (option) => option.value === +categoryId
-            ).label,
-          };
-        });
-    } else {
-      return [];
-    }
+    const ids = searchParams.get("categoryId")?.split(",") || [];
+    return ids.map((id) => {
+      const match = categoriesOption.find((opt) => opt.value === +id);
+      return match ? { value: match.value, label: match.label } : null;
+    }).filter(Boolean);
   });
+
   const [selectedGender, setSelectedGender] = useState(
-    () => searchParams.get("gender") || ""
+    searchParams.get("gender") || ""
   );
+
   const [sliderValue, setSliderValue] = useState(
-    () => searchParams.get("priceRangeTo") || 2000
+    searchParams.get("priceRangeTo") || 2000
   );
 
   const [sliderChanged, setSliderChanged] = useState(false);
 
   const initialDiscountOptions = useMemo(() => {
-    if (searchParams.get("discount")) {
-      const value = searchParams.get("discount");
-      if (!value) return discountOptions[0];
-      const [from, to] = value?.split("-");
-      return { value, label: `From ${from}% to ${to}%` };
-    } else {
-      return discountOptions[0];
-    }
+    const value = searchParams.get("discount");
+    if (!value) return discountOptions[0];
+    const [from, to] = value.split("-");
+    return { value, label: `From ${from}% to ${to}%` };
   }, []);
 
   const initialBrandOptions = useMemo(() => {
-    if (searchParams.get("brandId")) {
-      return searchParams
-        .get("brandId")
-        ?.split(",")
-        .map((brandId) => {
-          return {
-            value: +brandId,
-            label: brandsOption.find((option) => option.value === +brandId)
-              .label,
-          };
-        });
-    } else {
-      return [];
-    }
+    const ids = searchParams.get("brandId")?.split(",") || [];
+    return ids.map((id) => {
+      const match = brandsOption.find((opt) => opt.value === +id);
+      return match ? { value: match.value, label: match.label } : null;
+    }).filter(Boolean);
   }, [brandsOption]);
 
   const initialOccasionOptions = useMemo(() => {
-    if (searchParams.get("occasions")) {
-      return searchParams
-        .get("occasions")
-        ?.split(",")
-        .map((item) => ({ value: item, label: item }));
-    } else {
-      return [];
-    }
+    const items = searchParams.get("occasions")?.split(",") || [];
+    return items.map((item) => ({ value: item, label: item }));
   }, []);
 
   useEffect(() => {
     if (sliderChanged) {
       const handler = setTimeout(() => {
-        // setSliderValue(tempSliderValue);
+        searchParams.set("priceRangeTo", `${sliderValue}`);
         searchParams.delete("page");
         searchParams.delete("pageSize");
-        searchParams.set("priceRangeTo", `${sliderValue}`);
         router.push(`/products?${searchParams.toString()}`, { scroll: false });
       }, 300);
 
@@ -126,46 +101,48 @@ function Filter({ categories, brands }) {
   }, [sliderValue]);
 
   function handleBrandsSelect(e) {
-    alert("Please update the code.");
+    const ids = e.map((item) => item.value).join(",");
+    if (ids) searchParams.set("brandId", ids);
+    else searchParams.delete("brandId");
+    router.push(`/products?${searchParams.toString()}`, { scroll: false });
   }
 
   function handleCategoriesSelected(e) {
-    alert("Please update the code.");
+    setCategoriesSelected(e);
+    const ids = e.map((item) => item.value).join(",");
+    if (ids) searchParams.set("categoryId", ids);
+    else searchParams.delete("categoryId");
+    router.push(`/products?${searchParams.toString()}`, { scroll: false });
   }
 
   function handleSlider(e) {
-    alert("Please update the code.");
+    setSliderChanged(true);
+    setSliderValue(e.target.value);
   }
 
-  const handleGenderChange = (e) => {
-    alert("Please update the code.");
-  };
+  function handleGenderChange(e) {
+    setSelectedGender(e.target.value);
+    if (e.target.value) searchParams.set("gender", e.target.value);
+    else searchParams.delete("gender");
+    router.push(`/products?${searchParams.toString()}`, { scroll: false });
+  }
 
   function handleOccasions(e) {
-    alert("Please update the code.");
+    const values = e.map((item) => item.value).join(",");
+    if (values) searchParams.set("occasions", values);
+    else searchParams.delete("occasions");
+    router.push(`/products?${searchParams.toString()}`, { scroll: false });
   }
 
   function handleDiscount(e) {
-    alert("Please update the code.");
+    if (e.value) searchParams.set("discount", e.value);
+    else searchParams.delete("discount");
+    router.push(`/products?${searchParams.toString()}`, { scroll: false });
   }
-
-  // function handleClearAll() {
-  //   searchParams.delete("categoryId");
-  //   searchParams.delete("brandId");
-  //   searchParams.delete("priceRangeTo");
-  //   searchParams.delete("gender");
-  //   searchParams.delete("occasions");
-  //   searchParams.delete("discount");
-  //   router.push(`/products?${searchParams.toString()}`);
-  // }
 
   return (
     <div className="w-full">
-      {/* <button className="bg-white p-2 my-4 text-black" onClick={handleClearAll}>
-        Clear All
-      </button> */}
-      {/* <p className="text-lg">Filter By</p> */}
-      <div className="w-1/4 flex  items-center gap-4 mb-4">
+      <div className="w-1/4 flex items-center gap-4 mb-4">
         <span>Brands</span>
         <Select
           className="flex-1 text-black"
@@ -176,6 +153,7 @@ function Filter({ categories, brands }) {
           defaultValue={initialBrandOptions}
         />
       </div>
+
       <div className="w-1/3 flex items-center gap-4 mb-4">
         <span>Categories</span>
         <MultiSelect
@@ -187,8 +165,9 @@ function Filter({ categories, brands }) {
           onChange={handleCategoriesSelected}
         />
       </div>
+
       <div>
-        <span>Select products from Range 1 to 2000</span>
+        <span>Select products from Range 100 to 2000</span>
         <br />
         <span>Current Value {sliderValue}</span> <br />
         <input
@@ -200,58 +179,25 @@ function Filter({ categories, brands }) {
           onChange={handleSlider}
         />
       </div>
+
       <div>
         Select Gender: <br />
-        <input
-          type="radio"
-          id="none"
-          name="gender"
-          value=""
-          checked={selectedGender === ""}
-          onChange={handleGenderChange}
-        />
-        <label htmlFor="none">None</label> <br />
-        <input
-          type="radio"
-          id="men"
-          name="gender"
-          value="men"
-          checked={selectedGender === "men"}
-          onChange={handleGenderChange}
-        />
-        <label htmlFor="men">Men</label>
-        <br />
-        <input
-          type="radio"
-          id="women"
-          name="gender"
-          value="women"
-          checked={selectedGender === "women"}
-          onChange={handleGenderChange}
-        />
-        <label htmlFor="women">Women</label>
-        <br />
-        <input
-          type="radio"
-          id="boy"
-          name="gender"
-          value="boy"
-          checked={selectedGender === "boy"}
-          onChange={handleGenderChange}
-        />
-        <label htmlFor="boy">Boy</label>
-        <br />
-        <input
-          type="radio"
-          id="girl"
-          name="gender"
-          value="girl"
-          checked={selectedGender === "girl"}
-          onChange={handleGenderChange}
-        />
-        <label htmlFor="girl">Girl</label>
+        {["", "men", "women", "boy", "girl"].map((gender) => (
+          <div key={gender}>
+            <input
+              type="radio"
+              id={gender || "none"}
+              name="gender"
+              value={gender}
+              checked={selectedGender === gender}
+              onChange={handleGenderChange}
+            />
+            <label htmlFor={gender || "none"}>{gender || "None"}</label>
+          </div>
+        ))}
       </div>
-      <div className="w-1/4 flex  items-center gap-4 mb-4">
+
+      <div className="w-1/4 flex items-center gap-4 mb-4">
         <span>Occasion</span>
         <Select
           className="flex-1 text-black"
@@ -263,7 +209,7 @@ function Filter({ categories, brands }) {
         />
       </div>
 
-      <div className="w-1/4 flex  items-center gap-4 mb-4">
+      <div className="w-1/4 flex items-center gap-4 mb-4">
         <span>Filter By discount</span>
         <Select
           className="flex-1 text-black"

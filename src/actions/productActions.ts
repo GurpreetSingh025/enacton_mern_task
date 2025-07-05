@@ -9,19 +9,26 @@ import { revalidatePath } from "next/cache";
 import { authOptions } from "@/utils/authOptions";
 import { cache } from "react";
 
-export async function getProducts(pageNo = 1, pageSize = DEFAULT_PAGE_SIZE) {
+export async function getProducts(pageNo = 1, pageSize = DEFAULT_PAGE_SIZE , searchParams: { [key: string]: string | string[] | undefined }) {
   try {
-    let products;
-    let dbQuery = db.selectFrom("products").selectAll("products");
+    // console.log("get prod ====> ");
 
-    const { count } = await dbQuery
-      // .select(sql`COUNT(DISTINCT products.id) as count`)
+    // 1. Count total products
+    const result = await db
+      .selectFrom("products")
+      .select((eb) => eb.fn.count("id").as("count"))
       .executeTakeFirst();
+
+    const count = Number(result?.count || 0);
+    // console.log("count:", count);
+    // console.log("pageSize:", pageSize);
 
     const lastPage = Math.ceil(count / pageSize);
 
-    products = await dbQuery
-      .distinct()
+    // 2. Get paginated products
+    const products = await db
+      .selectFrom("products")
+      .selectAll()
       .offset((pageNo - 1) * pageSize)
       .limit(pageSize)
       .execute();
@@ -30,9 +37,11 @@ export async function getProducts(pageNo = 1, pageSize = DEFAULT_PAGE_SIZE) {
 
     return { products, count, lastPage, numOfResultsOnCurPage };
   } catch (error) {
+    console.error("Error in getProducts:", error);
     throw error;
   }
 }
+
 
 export const getProduct = cache(async function getProduct(productId: number) {
   // console.log("run");
@@ -145,3 +154,66 @@ export async function getProductCategories(productId: number) {
     throw error;
   }
 }
+export async function updateProduct(id: number, payload: UpdateProducts) {
+  try {
+    await db
+      .updateTable("products")
+      .set(payload)
+      .where("id", "=", id)
+      .execute();
+
+    revalidatePath("/products");
+
+    return { message: "Product updated successfully!" };
+  } catch (error) {
+    console.error("Error updating product:", error);
+    return { error: "Could not update the product." };
+  }
+}
+export async function updateProductCategories(productId: number, categoryIds: number[]) {
+  try {
+    // 1. Delete existing mappings
+    await db
+      .deleteFrom("product_categories")
+      .where("product_id", "=", productId)
+      .execute();
+
+    // 2. Insert new mappings
+    const insertValues = categoryIds.map((categoryId) => ({
+      product_id: productId,
+      category_id: categoryId,
+    }));
+
+    if (insertValues.length > 0) {
+      await db.insertInto("product_categories").values(insertValues).execute();
+    }
+
+    revalidatePath("/products");
+
+    return { message: "Categories updated successfully." };
+  } catch (err) {
+    console.error("updateProductCategories error:", err);
+    return { error: "Failed to update product categories." };
+  }
+}
+export async function postProduct(product: InsertProducts) {
+  try {
+    const result = await db
+      .insertInto("products")
+      .values(product)
+      .executeTakeFirst();
+
+    const insertId = result.insertId; // Get the auto-incremented ID
+
+    if (!insertId) {
+      return { error: "Failed to insert product" };
+    }
+
+    revalidatePath("/products");
+
+    return { message: "success", id: insertId };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+

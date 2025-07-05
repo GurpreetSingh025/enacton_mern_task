@@ -17,8 +17,9 @@ export default async function Products({
 
   const { products, lastPage, numOfResultsOnCurPage } = await getProducts(
     +page,
-    +pageSize
-  );
+    +pageSize ,
+    searchParams  
+  );  
 
   const brands = await getBrands();
   const categories = await getCategories();
