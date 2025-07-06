@@ -9,26 +9,80 @@ import { revalidatePath } from "next/cache";
 import { authOptions } from "@/utils/authOptions";
 import { cache } from "react";
 
-export async function getProducts(pageNo = 1, pageSize = DEFAULT_PAGE_SIZE , searchParams: { [key: string]: string | string[] | undefined }) {
+export async function getProducts(
+  pageNo = 1,
+  pageSize = DEFAULT_PAGE_SIZE,
+  searchParams: { [key: string]: string | string[] | undefined }
+) {
   try {
-    // console.log("get prod ====> ");
+    let query = db.selectFrom("products");
 
-    // 1. Count total products
-    const result = await db
-      .selectFrom("products")
-      .select((eb) => eb.fn.count("id").as("count"))
+    // Apply filters based on searchParams
+    if (searchParams.categoryId) {
+      const categoryIds = Array.isArray(searchParams.categoryId)
+        ? searchParams.categoryId
+        : searchParams.categoryId.split(",").map(Number);
+      query = query
+        .innerJoin("product_categories", "products.id", "product_categories.product_id")
+        .where("product_categories.category_id", "in", categoryIds);
+    }
+
+    if (searchParams.brandId) {
+      const brandIds = Array.isArray(searchParams.brandId)
+        ? searchParams.brandId.map(Number)
+        : searchParams.brandId.split(",").map(Number);
+      // Filter by brands column (JSON array)
+      query = query.where(sql`JSON_CONTAINS(products.brands, CAST(${brandIds} AS JSON))`);
+    }
+
+    if (searchParams.priceRangeTo) {
+      const priceRangeTo = Number(searchParams.priceRangeTo);
+      query = query.where("products.price", "<=", priceRangeTo);
+    }
+
+    if (searchParams.gender) {
+      query = query.where("products.gender", "=", searchParams.gender as string);
+    }
+
+    if (searchParams.occasions) {
+      const occasions = Array.isArray(searchParams.occasions)
+        ? searchParams.occasions
+        : searchParams.occasions.split(",");
+      query = query.where("products.occasion", "in", occasions);
+    }
+
+    if (searchParams.discount) {
+      const [minDiscount, maxDiscount] = (searchParams.discount as string)
+        .split("-")
+        .map(Number);
+      query = query.where("products.discount", ">=", minDiscount);
+      if (maxDiscount) {
+        query = query.where("products.discount", "<=", maxDiscount);
+      }
+    }
+
+    // Apply sorting if provided
+    if (searchParams.sortBy) {
+      const [field, direction] = (searchParams.sortBy as string).split("-");
+      if (
+        ["price", "created_at", "rating"].includes(field) &&
+        ["asc", "desc"].includes(direction)
+      ) {
+        query = query.orderBy(`products.${field}`, direction as "asc" | "desc");
+      }
+    }
+
+    // Count total products with filters applied
+    const result = await query
+      .select((eb) => eb.fn.count("products.id").as("count"))
       .executeTakeFirst();
 
     const count = Number(result?.count || 0);
-    // console.log("count:", count);
-    // console.log("pageSize:", pageSize);
-
     const lastPage = Math.ceil(count / pageSize);
 
-    // 2. Get paginated products
-    const products = await db
-      .selectFrom("products")
-      .selectAll()
+    // Get paginated products with filters applied
+    const products = await query
+      .selectAll("products")
       .offset((pageNo - 1) * pageSize)
       .limit(pageSize)
       .execute();
@@ -41,7 +95,6 @@ export async function getProducts(pageNo = 1, pageSize = DEFAULT_PAGE_SIZE , sea
     throw error;
   }
 }
-
 
 export const getProduct = cache(async function getProduct(productId: number) {
   // console.log("run");
